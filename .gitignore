@@ -1,0 +1,27 @@
+# Visual Studio
+.vs/
+*.sln
+*.user
+*.suo
+*.csproj
+.idea/
+# Unreal Engine - 必须忽略的生成文件
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+/Build/
+*.target.xml
+# 临时锁定文件
+*.VC.db
+*.opensdf
+*.sdf
+# —— 平台特定中间件 ——
+*/Platforms/*/Binaries/
+*/Platforms/*/Intermediate/
+*/Plugins/*/Binaries/
+*/Plugins/*/Intermediate/
+# —— 临时 / 日志 ——
+*.log
+*.tmp
+*.swp
