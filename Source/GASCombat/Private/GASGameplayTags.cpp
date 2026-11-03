@@ -20,6 +20,15 @@ namespace GASGameplayTags {
 	UE_DEFINE_GAMEPLAY_TAG(InputTag_1, "InputTag.1");
 	UE_DEFINE_GAMEPLAY_TAG(InputTag_2, "InputTag.2");
 	UE_DEFINE_GAMEPLAY_TAG(InputTag_3, "InputTag.3");
+
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Attack_Melee, "Ability.Attack.Melee");
+
+	UE_DEFINE_GAMEPLAY_TAG(Event_Combo_Window_Open, "Event.Combo.Window.Open");
+	UE_DEFINE_GAMEPLAY_TAG(Event_Combo_Window_Close, "Event.Combo.Window.Close");
+
+	UE_DEFINE_GAMEPLAY_TAG(Event_Combat_DamageFrame, "Event.Combat.DamageFrame");
+
+	UE_DEFINE_GAMEPLAY_TAG(State_Attacking, "State.Attacking");
 }
 
 

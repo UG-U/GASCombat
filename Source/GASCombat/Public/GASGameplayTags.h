@@ -29,6 +29,28 @@ namespace GASGameplayTags {
 	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_1);
 	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_2);
 	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_3);
+
+	/*
+	* Ability
+	*/
+	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Attack_Melee);
+
+	/*
+	* Combo Window Event
+	*/
+	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Combo_Window_Open);
+	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Combo_Window_Close);
+
+	/*
+	* Combat Damage Event
+	*/
+	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Combat_DamageFrame);
+
+
+	/*
+	* State Tags
+	*/
+	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Attacking);
 }
 
 

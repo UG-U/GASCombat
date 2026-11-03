@@ -4,8 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Character/GASCharacterBase.h"
+#include"Widget/WidgetController/GASOverlayWidgetController.h"
 #include "GASEnemy.generated.h"
 
+
+class UWidgetComponent;
 /**
  * 
  */
@@ -26,5 +29,15 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	UPROPERTY(BlueprintAssignable, Category = "GAS|Attributes")
+	FOnAttributeChangedSignature OnHealthChange;
+
+	UPROPERTY(BlueprintAssignable, Category = "GAS|Attributes")
+	FOnAttributeChangedSignature OnMaxHealthChange;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TObjectPtr<UWidgetComponent>HealthBar;
 
 };
