@@ -12,7 +12,6 @@ class UAbilityTask_WaitInputPress;
 class UGameplayEffect;
 
 
-//DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FInputPressDelegate, float, TimeWaited);
 /**
  * 
  */
@@ -23,7 +22,7 @@ class GASCOMBAT_API UGA_MeleeAttack : public UGASGameplayAbility
 	
 public:
     UGA_MeleeAttack();
-
+    
 protected:
     virtual void ActivateAbility(
         const FGameplayAbilitySpecHandle Handle,
@@ -62,11 +61,23 @@ protected:
 
     void AdvanceCombo();
 
-    // 攻击判定回调（AnimNotify 触发）
+    // 攻击判定回调，逻辑结算，打敌人（AnimNotify 触发）
     UFUNCTION()
     void OnDamageFrame(FGameplayEventData Payload);
 
+	// 执行近战攻击检测,找敌人
     TArray<FHitResult> PerformMeleeTrace();
+
+    //寻找距离最近的敌人
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    AActor* FindClosestEnemyInRange(float Range);
+
+    // 在 UGA_MeleeAttack.h 中
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Warp")
+    float WarpDistanceOffset = 100.0f; // 吸附到敌人面前的偏移距离
+
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Warp")
+    float FindEnemyRadius = 500.0f; // 寻找敌人的半径
 
     // 当前连击段数
     int32 ComboIndex = 0;

@@ -42,6 +42,12 @@ namespace GASGameplayTags {
 	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Combo_Window_Close);
 
 	/*
+	* Combat Damage Event
+	*/
+	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Combat_DamageFrame);
+
+
+	/*
 	* State Tags
 	*/
 	GASCOMBAT_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Attacking);

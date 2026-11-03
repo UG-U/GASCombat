@@ -13,6 +13,9 @@ AGASCharacterBase::AGASCharacterBase()
 
 	WeaponSocket = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponSocket"));
 	WeaponSocket->SetupAttachment(GetMesh(), FName("WeaponSocket"));
+
+
+	TeamId = FGenericTeamId(255);
 }
 
 
@@ -63,6 +66,11 @@ void AGASCharacterBase::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+}
+
+FGenericTeamId AGASCharacterBase::GetGenericTeamId() const
+{
+	return TeamId;
 }
 
 

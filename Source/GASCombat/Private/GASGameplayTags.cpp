@@ -25,6 +25,9 @@ namespace GASGameplayTags {
 
 	UE_DEFINE_GAMEPLAY_TAG(Event_Combo_Window_Open, "Event.Combo.Window.Open");
 	UE_DEFINE_GAMEPLAY_TAG(Event_Combo_Window_Close, "Event.Combo.Window.Close");
+
+	UE_DEFINE_GAMEPLAY_TAG(Event_Combat_DamageFrame, "Event.Combat.DamageFrame");
+
 	UE_DEFINE_GAMEPLAY_TAG(State_Attacking, "State.Attacking");
 }
 
