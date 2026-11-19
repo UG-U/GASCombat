@@ -8,7 +8,7 @@ public class GASCombat : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore","EnhancedInput","GameplayAbilities","GameplayTags","GameplayTasks","AIModule","MotionWarping" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore","EnhancedInput","GameplayAbilities","GameplayTags","GameplayTasks","AIModule","MotionWarping","Niagara" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

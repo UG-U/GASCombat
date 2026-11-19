@@ -8,6 +8,7 @@
 
 
 struct FGameplayTag;
+class UGameplayEffect;
 /**
  * 
  */
@@ -19,4 +20,5 @@ class GASCOMBAT_API UGASGameplayAbility : public UGameplayAbility
 public:
 	UPROPERTY(EditDefaultsOnly,Category="Input")
 	FGameplayTag InputTag;
+
 };
