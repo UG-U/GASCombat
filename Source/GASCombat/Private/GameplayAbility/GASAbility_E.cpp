@@ -36,6 +36,8 @@ void UGASAbility_E::ActivateAbility(const FGameplayAbilitySpecHandle Handle, con
     MontageTask->ReadyForActivation();
 
 
+    TryWarpToNearestEnemy(FindEnemyRadius);
+
     //监听伤害判定事件
 	UAbilityTask_WaitGameplayEvent* DamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
         this, GASGameplayTags::Event_Combat_DamageFrame);
@@ -61,89 +63,17 @@ void UGASAbility_E::OnMontageCompleted()
 
 void UGASAbility_E::OnDamageFrameEvent(FGameplayEventData Payload)
 {
-    TArray<FHitResult> HitResults = PerformMeleeTrace();
-    if (HitResults.Num() == 0) return;
-
-    UAbilitySystemComponent* SourceASC = GetAbilitySystemComponentFromActorInfo();
-    if (!SourceASC) return;
-
-    //去重
-    TSet<AActor*> UniqueTargets;
-
-    for (const FHitResult& Hit : HitResults)
-    {
-        AActor* Target = Hit.GetActor();
-        if (!Target || UniqueTargets.Contains(Target)) continue;
-        UniqueTargets.Add(Target);
-
-        UAbilitySystemComponent* TargetASC =
-            UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-        //TargetASC为空或者目标处于无敌状态，跳过
-        if (!TargetASC || TargetASC->HasMatchingGameplayTag(GASGameplayTags::State_Invincible)) continue;
-
-        //同阵营忽略
-        AActor* Avatar = GetAvatarActorFromActorInfo();
-        if (!Avatar) continue;
-        IGenericTeamAgentInterface* OwnerTeam = Cast<IGenericTeamAgentInterface>(Avatar);
-        IGenericTeamAgentInterface* TargetTeam = Cast<IGenericTeamAgentInterface>(Target);
-        if (OwnerTeam && TargetTeam && OwnerTeam->GetGenericTeamId() == TargetTeam->GetGenericTeamId())
-        {
-
-            continue;
-        }
-
-        // =================  网络同步（服务器权威） =================
-        if (!GetOwningActorFromActorInfo()->HasAuthority())
-        {
-            // 客户端只负责表现（比如在 Hit.ImpactPoint 播放火花特效）
-            // 伤害结算交由服务器处理，然后通过 GE 自动同步回客户端
-            continue;
-        }
-
-        // 判断形态
-        UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
-        bool bIsDual = ASC->HasMatchingGameplayTag(GASGameplayTags::State_Weapon_Dual);
-        FSkillFormData CurrentForm = bIsDual ? SkillData->DualFormData : SkillData->CombinedFormData;
-
-        //应用伤害效果
-        TSubclassOf<UGameplayEffect> DamageEffect = CurrentForm.DamageGE;
-
-        FGameplayEffectContextHandle ContextHandle = SourceASC->MakeEffectContext();
-        ContextHandle.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
-        ContextHandle.AddHitResult(Hit);
-
-        FGameplayEffectSpecHandle SpecHandle =
-            SourceASC->MakeOutgoingSpec(DamageEffect, GetAbilityLevel(), ContextHandle);
-
-        if (SpecHandle.IsValid())
-        {
-            SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-        }
-    }
+    ApplyMeleeDamage(PerformMeleeTrace());
 }
 
-TArray<FHitResult> UGASAbility_E::PerformMeleeTrace()
+TSubclassOf<UGameplayEffect> UGASAbility_E::GetMeleeDamageEffect() const
 {
-    TArray<FHitResult> HitResults;
-    AActor* Avatar = GetAvatarActorFromActorInfo();
-    if (!Avatar) return HitResults;
+	if (!SkillData)
+	{
+		return nullptr;
+	}
 
-    FVector Start = Avatar->GetActorLocation();
-    FVector Forward = Avatar->GetActorForwardVector();
-    FVector End = Start + Forward * TraceDistance;
-
-    FCollisionQueryParams Params;
-    Params.AddIgnoredActor(Avatar);
-
-    GetWorld()->SweepMultiByChannel(
-        HitResults,
-        Start,
-        End,
-        FQuat::Identity,
-        ECC_Pawn,
-        FCollisionShape::MakeSphere(TraceRadius),
-        Params
-    );
-
-    return HitResults;
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	const bool bIsDual = ASC && ASC->HasMatchingGameplayTag(GASGameplayTags::State_Weapon_Dual);
+	return bIsDual ? SkillData->DualFormData.DamageGE : SkillData->CombinedFormData.DamageGE;
 }

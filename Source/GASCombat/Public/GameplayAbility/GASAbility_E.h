@@ -3,16 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameplayAbility/GASGameplayAbility.h"
+#include "GameplayAbility/GASMeleeAbilityBase.h"
 #include "GASAbility_E.generated.h"
 
 class USkillDataAsset;
+class UGameplayEffect;
 
 /**
  * 
  */
 UCLASS()
-class GASCOMBAT_API UGASAbility_E : public UGASGameplayAbility
+class GASCOMBAT_API UGASAbility_E : public UGASMeleeAbilityBase
 {
 	GENERATED_BODY()
 	
@@ -29,19 +30,14 @@ public:
 	UFUNCTION()
 	void OnDamageFrameEvent(FGameplayEventData Payload);
 
-	// 执行近战攻击检测,找敌人
-	TArray<FHitResult> PerformMeleeTrace();
+	virtual TSubclassOf<UGameplayEffect> GetMeleeDamageEffect() const override;
+
 
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill")
 	TObjectPtr<USkillDataAsset> SkillData;
 
 
-	// 近战检测参数
-	UPROPERTY(EditDefaultsOnly, Category = "Combo")
-	float TraceRadius = 50.0f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Combo")
-	float TraceDistance = 150.0f;
 
 };

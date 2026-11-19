@@ -4,7 +4,9 @@
 #include "GameplayAbility/GASAbility_R.h"
 #include"AbilitySystemComponent.h"
 #include"GASGameplayTags.h"
-#include"DataAsset/SkillDataAsset.h"
+#include "DataAsset/SkillDataAsset.h"
+#include <Abilities/Tasks/AbilityTask_WaitGameplayEvent.h>
+#include "GameplayEffect.h"
 #include <Abilities/Tasks/AbilityTask_PlayMontageAndWait.h>
 void UGASAbility_R::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
@@ -22,6 +24,14 @@ void UGASAbility_R::ActivateAbility(const FGameplayAbilitySpecHandle Handle, con
 		this, NAME_None, CurrentForm.SkillMontage);
 	MontageTask->OnCompleted.AddDynamic(this, &UGASAbility_R::OnMontageCompleted);
 	MontageTask->ReadyForActivation();
+
+	// 监听伤害帧
+	UAbilityTask_WaitGameplayEvent* DamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this, GASGameplayTags::Event_Combat_DamageFrame);
+	DamageEventTask->EventReceived.AddDynamic(this, &UGASAbility_R::OnDamageFrameEvent);
+	DamageEventTask->ReadyForActivation();
+
+	TryWarpToNearestEnemy(FindEnemyRadius);
 }
 
 void UGASAbility_R::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
@@ -32,4 +42,21 @@ void UGASAbility_R::EndAbility(const FGameplayAbilitySpecHandle Handle, const FG
 void UGASAbility_R::OnMontageCompleted()
 {
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
+void UGASAbility_R::OnDamageFrameEvent(FGameplayEventData Payload)
+{
+	ApplyMeleeDamage(PerformMeleeTrace());
+}
+
+TSubclassOf<UGameplayEffect> UGASAbility_R::GetMeleeDamageEffect() const
+{
+	if (!SkillDataAsset)
+	{
+		return nullptr;
+	}
+
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	const bool bIsDual = ASC && ASC->HasMatchingGameplayTag(GASGameplayTags::State_Weapon_Dual);
+	return bIsDual ? SkillDataAsset->DualFormData.DamageGE : SkillDataAsset->CombinedFormData.DamageGE;
 }

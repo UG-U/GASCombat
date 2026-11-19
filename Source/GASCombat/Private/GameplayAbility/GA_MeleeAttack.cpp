@@ -36,55 +36,7 @@ void UGA_MeleeAttack::ActivateAbility(
     }
 
 
-    AActor* Avatar = GetAvatarActorFromActorInfo();
-    if (!Avatar) return;
-
-    // 寻找最近的敌人（可以用球体扫描找最近的敌对目标）
-    AActor* TargetEnemy = FindClosestEnemyInRange(FindEnemyRadius);
-    if (TargetEnemy)
-    {
-        UMotionWarpingComponent* WarpComp = Avatar->FindComponentByClass<UMotionWarpingComponent>();
-  
-        if (WarpComp)
-        {
-            FVector TargetLoc = TargetEnemy->GetActorLocation();
-            FVector AvatarLoc = Avatar->GetActorLocation();
-            FVector Direction = (TargetLoc - AvatarLoc).GetSafeNormal();
-
-            // 理想落脚点
-            FVector DesiredWarpLocation = TargetLoc - (Direction * WarpDistanceOffset);
-            FRotator DesiredWarpRotation = Direction.Rotation();
-
-            // ================= 关键：防穿墙检测 =================
-            FHitResult HitResult;
-            FCollisionQueryParams Params;
-            Params.AddIgnoredActor(Avatar);
-            Params.AddIgnoredActor(TargetEnemy); // 忽略目标敌人本身
-
-            // 从自己向目标点发射一条射线，看看中间有没有墙
-            bool bHit = GetWorld()->LineTraceSingleByChannel(
-                HitResult,
-                AvatarLoc,
-                DesiredWarpLocation,
-                ECC_Visibility, // 假设墙的通道是 Visibility
-                Params
-            );
-
-            if (bHit)
-            {
-                // 如果撞到墙了，把落脚点设在撞墙的位置，并往后退一点点（比如 20 厘米）
-                DesiredWarpLocation = HitResult.ImpactPoint - (Direction * 20.0f);
-            }
-            // ====================================================
-
-            WarpComp->AddOrUpdateWarpTargetFromLocationAndRotation(
-                FName("FaceWarping"),
-                DesiredWarpLocation,
-                DesiredWarpRotation
-            );
-        }
-    }
-
+    TryWarpToNearestEnemy(FindEnemyRadius);
 
     // 2. 重置连击状态
     ComboIndex = 0;
@@ -144,7 +96,9 @@ void UGA_MeleeAttack::EndAbility(
     bool bWasCancelled)
 {
     //C++继承通用原则：先清理子类，最后清理父类
-    // 移除攻击状态标签
+
+    // 结束吸附，避免旧的 WarpTarget 影响后续蒙太奇
+    ClearWarpTarget();
 
     // 结束蒙太奇任务
     if (MontageTask && IsValid(MontageTask))
@@ -235,6 +189,8 @@ void UGA_MeleeAttack::AdvanceCombo()
         return;
     }
 
+    TryWarpToNearestEnemy(FindEnemyRadius);
+
     // 3. 判断是否切换了蒙太奇
     if (NextStep.Montage == CurrentMontage)
     {
@@ -267,146 +223,7 @@ void UGA_MeleeAttack::AdvanceCombo()
 void UGA_MeleeAttack::OnDamageFrame(FGameplayEventData Payload)
 {
     if (!CurrentComboConfig || !CurrentComboConfig->ComboSteps.IsValidIndex(ComboIndex)) return;
-    TArray<FHitResult> HitResults = PerformMeleeTrace();
-    if (HitResults.Num() == 0) return;
-
-    UAbilitySystemComponent* SourceASC = GetAbilitySystemComponentFromActorInfo();
-    if (!SourceASC) return;
-
-    // 获取当前段的伤害倍率
-    float CurrentMultiplier = CurrentComboConfig->ComboSteps[ComboIndex].DamageMultiplier;
-    // 将字符串 "Data.Damage.Multiplier" 转换为一个可以在 C++ 中使用的 FGameplayTag 对象。
-    FGameplayTag MultiplierTag = FGameplayTag::RequestGameplayTag(FName("Data.Damage.Multiplier"));
-    //去重
-    TSet<AActor*> UniqueTargets;
-
-    for (const FHitResult& Hit : HitResults)
-    {
-        AActor* Target = Hit.GetActor();
-        if (!Target|| UniqueTargets.Contains(Target)) continue;
-		UniqueTargets.Add(Target);
-
-        UAbilitySystemComponent* TargetASC =
-            UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-		//TargetASC为空或者目标处于无敌状态，跳过
-        if (!TargetASC|| TargetASC->HasMatchingGameplayTag(GASGameplayTags::State_Invincible)) continue;
-
-        //同阵营忽略
-		AActor* Avatar = GetAvatarActorFromActorInfo();
-        if (!Avatar) continue;
-		IGenericTeamAgentInterface* OwnerTeam = Cast<IGenericTeamAgentInterface>(Avatar);
-		IGenericTeamAgentInterface* TargetTeam = Cast<IGenericTeamAgentInterface>(Target);
-		if (OwnerTeam && TargetTeam && OwnerTeam->GetGenericTeamId() == TargetTeam->GetGenericTeamId())
-		{
-			
-			continue;
-		}
-
-        // =================  网络同步（服务器权威） =================
-        if (!GetOwningActorFromActorInfo()->HasAuthority())
-        {
-            // 客户端只负责表现（比如在 Hit.ImpactPoint 播放火花特效）
-            // 伤害结算交由服务器处理，然后通过 GE 自动同步回客户端
-            continue;
-        }
-
-		//应用伤害效果
-        FGameplayEffectContextHandle ContextHandle = SourceASC->MakeEffectContext();
-        ContextHandle.AddInstigator(GetAvatarActorFromActorInfo(), GetAvatarActorFromActorInfo());
-        ContextHandle.AddHitResult(Hit);
-
-        FGameplayEffectSpecHandle SpecHandle =
-            SourceASC->MakeOutgoingSpec(DamageEffectClass, GetAbilityLevel(), ContextHandle);
-        
-        if (SpecHandle.IsValid())
-        {
-			// 设置伤害倍率
-			SpecHandle.Data->SetSetByCallerMagnitude(MultiplierTag, CurrentMultiplier);
-            SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-        }
-    }
-}
-
-TArray<FHitResult> UGA_MeleeAttack::PerformMeleeTrace()
-{
-    TArray<FHitResult> HitResults;
-    AActor* Avatar = GetAvatarActorFromActorInfo();
-    if (!Avatar) return HitResults;
-
-    FVector Start = Avatar->GetActorLocation();
-    FVector Forward = Avatar->GetActorForwardVector();
-    FVector End = Start + Forward * TraceDistance;
-
-    FCollisionQueryParams Params;
-    Params.AddIgnoredActor(Avatar);
-
-    GetWorld()->SweepMultiByChannel(
-        HitResults,
-        Start,
-        End,
-        FQuat::Identity,
-        ECC_Pawn,
-        FCollisionShape::MakeSphere(TraceRadius),
-        Params
-    );
-
-    return HitResults;
-}
-
-AActor* UGA_MeleeAttack::FindClosestEnemyInRange(float Range)
-{
-    AActor* Avatar = GetAvatarActorFromActorInfo();
-    if (!Avatar) return nullptr;
-
-    FVector StartLoc = Avatar->GetActorLocation();
-
-    // 忽略自己
-    FCollisionQueryParams QueryParams;
-    QueryParams.AddIgnoredActor(Avatar);
-
-    // 使用多重重叠扫描，查找范围内的 Pawn
-    TArray<FOverlapResult> OverlapResults;
-    GetWorld()->OverlapMultiByChannel(
-        OverlapResults,
-        StartLoc,
-        FQuat::Identity,
-        ECC_Pawn, // 扫描 Pawn 通道
-        FCollisionShape::MakeSphere(Range),
-        QueryParams
-    );
-
-    AActor* BestTarget = nullptr;
-    float ClosestDistSq = TNumericLimits<float>::Max(); // 记录最短距离
-
-    for (const FOverlapResult& Result : OverlapResults)
-    {
-        AActor* TargetActor = Result.GetActor();
-        if (!TargetActor) continue;
-
-        // 1. 阵营判定：如果是友军，直接跳过
-        IGenericTeamAgentInterface* OwnerTeam = Cast<IGenericTeamAgentInterface>(Avatar);
-        IGenericTeamAgentInterface* TargetTeam = Cast<IGenericTeamAgentInterface>(TargetActor);
-        if (OwnerTeam && TargetTeam && OwnerTeam->GetGenericTeamId() == TargetTeam->GetGenericTeamId())
-        {
-            continue;
-        }
-
-        // 2. 检查目标是否有 ASC（确保是战斗单位）
-        if (!UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(TargetActor))
-        {
-            continue;
-        }
-
-        // 3. 距离计算（用平方距离比较，省去开方运算，性能更好）
-        float DistSq = FVector::DistSquared(StartLoc, TargetActor->GetActorLocation());
-        if (DistSq < ClosestDistSq)
-        {
-            ClosestDistSq = DistSq;
-            BestTarget = TargetActor;
-        }
-    }
-
-    return BestTarget;
+    ApplyMeleeDamage(PerformMeleeTrace());
 }
 
 UComboDataAsset* UGA_MeleeAttack::GetComboConfigByForm() const
@@ -417,4 +234,18 @@ UComboDataAsset* UGA_MeleeAttack::GetComboConfigByForm() const
 		return DualComboConfig;
     }
     return CombinedComboConfig;
+}
+
+TSubclassOf<UGameplayEffect> UGA_MeleeAttack::GetMeleeDamageEffect() const
+{
+    return DamageEffectClass;
+}
+
+float UGA_MeleeAttack::GetMeleeDamageMultiplier() const
+{
+    if (CurrentComboConfig && CurrentComboConfig->ComboSteps.IsValidIndex(ComboIndex))
+    {
+        return CurrentComboConfig->ComboSteps[ComboIndex].DamageMultiplier;
+    }
+    return 1.f;
 }
