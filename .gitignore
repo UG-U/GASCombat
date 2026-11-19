@@ -11,6 +11,8 @@
 /Intermediate/
 /Saved/
 /Build/
+/Docs/
+/.dsh/
 *.target.xml
 # 临时锁定文件
 *.VC.db
