@@ -58,8 +58,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Team")
 	FGenericTeamId TeamId;
 
-	UPROPERTY(EditAnywhere, Category = "Weapon")
-	TObjectPtr<UStaticMeshComponent>WeaponSocket;
+	
 
 	UPROPERTY(EditAnywhere,Category="GameplayAbility")
 	TArray<TSubclassOf<UGameplayAbility>>AbilityLists;

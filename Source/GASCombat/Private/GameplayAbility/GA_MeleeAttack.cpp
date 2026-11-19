@@ -12,6 +12,8 @@
 #include "AbilitySystem/GASAttributeSet.h"
 #include <GenericTeamAgentInterface.h>
 #include <MotionWarpingComponent.h>
+#include"DataAsset/ComboDataAsset.h"
+
 
 UGA_MeleeAttack::UGA_MeleeAttack()
 {
@@ -33,15 +35,16 @@ void UGA_MeleeAttack::ActivateAbility(
         return;
     }
 
+
     AActor* Avatar = GetAvatarActorFromActorInfo();
     if (!Avatar) return;
 
-    // 1. 寻找最近的敌人（可以用球体扫描找最近的敌对目标）
-    // 这里假设你写了一个 FindClosestEnemy 函数
+    // 寻找最近的敌人（可以用球体扫描找最近的敌对目标）
     AActor* TargetEnemy = FindClosestEnemyInRange(FindEnemyRadius);
     if (TargetEnemy)
     {
         UMotionWarpingComponent* WarpComp = Avatar->FindComponentByClass<UMotionWarpingComponent>();
+  
         if (WarpComp)
         {
             FVector TargetLoc = TargetEnemy->GetActorLocation();
@@ -88,22 +91,22 @@ void UGA_MeleeAttack::ActivateAbility(
     bInComboWindow = false;
     bInputBuffered = false;
 
-    // 3. 添加攻击状态标签，防止释放其他技能
-    if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
-    {
-        ASC->AddLooseGameplayTag(GASGameplayTags::State_Attacking);
-    }
 
-    // 4. 检查蒙太奇和段数配置
-    if (!AttackMontage || ComboSections.Num() == 0)
+	CurrentComboConfig = GetComboConfigByForm();
+	//检查连击配置是否有效
+    if (!CurrentComboConfig || CurrentComboConfig->ComboSteps.Num() == 0)
     {
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
+	//获取当前连击的第一段蒙太奇和 Section
+	const FComboStep& FirstStep = CurrentComboConfig->ComboSteps[0];
+	CurrentMontage = FirstStep.Montage;
+
 
     // 5. 播放蒙太奇（从第一段开始）Task标准用法：创建→绑定→启动
     MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
-        this, NAME_None, AttackMontage, 1.0f, ComboSections[0]);
+        this, NAME_None, CurrentMontage, 1.0f, FirstStep.SectionName);
 
     MontageTask->OnCompleted.AddDynamic(this, &UGA_MeleeAttack::OnMontageCompleted);
     //这里被取消和被中断，之后的回调函数逻辑一样，故用同一个
@@ -142,10 +145,6 @@ void UGA_MeleeAttack::EndAbility(
 {
     //C++继承通用原则：先清理子类，最后清理父类
     // 移除攻击状态标签
-    if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
-    {
-        ASC->RemoveLooseGameplayTag(GASGameplayTags::State_Attacking);
-    }
 
     // 结束蒙太奇任务
     if (MontageTask && IsValid(MontageTask))
@@ -219,39 +218,78 @@ void UGA_MeleeAttack::AdvanceCombo()
 {
     ComboIndex++;
 
-    if (ComboIndex >= ComboSections.Num())
+    // 1. 检查是否打完全部连招
+    if (ComboIndex >= CurrentComboConfig->ComboSteps.Num())
     {
         EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
         return;
     }
-    //通过 ASC 控制当前蒙太奇跳转 Section
-    if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+
+    // 2. 获取下一段的配置
+    const FComboStep& NextStep = CurrentComboConfig->ComboSteps[ComboIndex];
+    UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+
+    if (!NextStep.Montage || !ASC)
     {
-        FName NextSection = ComboSections[ComboIndex];
+        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+        return;
+    }
+
+    // 3. 判断是否切换了蒙太奇
+    if (NextStep.Montage == CurrentMontage)
+    {
+        // 情况 A：同一个蒙太奇，只是跳到下一段 Section
+        FName NextSection = NextStep.SectionName;
+        // 如果没用 Section 机制，传 NAME_None 会从头播（通常不建议）
         ASC->CurrentMontageJumpToSection(NextSection);
     }
     else
     {
-        EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+        // 情况 B：蒙太奇变了，必须结束旧 Task，开启新 Task
+        if (MontageTask && IsValid(MontageTask))
+        {
+            MontageTask->EndTask();
+        }
+
+        CurrentMontage = NextStep.Montage;
+
+        MontageTask = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(
+            this, NAME_None, CurrentMontage, 1.0f, NextStep.SectionName);
+
+        MontageTask->OnCompleted.AddDynamic(this, &UGA_MeleeAttack::OnMontageCompleted);
+        MontageTask->OnInterrupted.AddDynamic(this, &UGA_MeleeAttack::OnMontageInterrupted);
+        MontageTask->OnCancelled.AddDynamic(this, &UGA_MeleeAttack::OnMontageInterrupted);
+        MontageTask->ReadyForActivation();
+        UE_LOG(LogTemp, Error, TEXT("MontageTask Activated for Combo Index %d"), ComboIndex);
     }
 }
 
 void UGA_MeleeAttack::OnDamageFrame(FGameplayEventData Payload)
 {
+    if (!CurrentComboConfig || !CurrentComboConfig->ComboSteps.IsValidIndex(ComboIndex)) return;
     TArray<FHitResult> HitResults = PerformMeleeTrace();
     if (HitResults.Num() == 0) return;
 
     UAbilitySystemComponent* SourceASC = GetAbilitySystemComponentFromActorInfo();
     if (!SourceASC) return;
 
+    // 获取当前段的伤害倍率
+    float CurrentMultiplier = CurrentComboConfig->ComboSteps[ComboIndex].DamageMultiplier;
+    // 将字符串 "Data.Damage.Multiplier" 转换为一个可以在 C++ 中使用的 FGameplayTag 对象。
+    FGameplayTag MultiplierTag = FGameplayTag::RequestGameplayTag(FName("Data.Damage.Multiplier"));
+    //去重
+    TSet<AActor*> UniqueTargets;
+
     for (const FHitResult& Hit : HitResults)
     {
         AActor* Target = Hit.GetActor();
-        if (!Target) continue;
+        if (!Target|| UniqueTargets.Contains(Target)) continue;
+		UniqueTargets.Add(Target);
 
         UAbilitySystemComponent* TargetASC =
             UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(Target);
-        if (!TargetASC) continue;
+		//TargetASC为空或者目标处于无敌状态，跳过
+        if (!TargetASC|| TargetASC->HasMatchingGameplayTag(GASGameplayTags::State_Invincible)) continue;
 
         //同阵营忽略
 		AActor* Avatar = GetAvatarActorFromActorInfo();
@@ -260,7 +298,7 @@ void UGA_MeleeAttack::OnDamageFrame(FGameplayEventData Payload)
 		IGenericTeamAgentInterface* TargetTeam = Cast<IGenericTeamAgentInterface>(Target);
 		if (OwnerTeam && TargetTeam && OwnerTeam->GetGenericTeamId() == TargetTeam->GetGenericTeamId())
 		{
-			UE_LOG(LogTemp, Error, TEXT("UGA_MeleeAttack::OnDamageFrame - Ignoring friendly target: %s"), *Target->GetName());
+			
 			continue;
 		}
 
@@ -282,8 +320,9 @@ void UGA_MeleeAttack::OnDamageFrame(FGameplayEventData Payload)
         
         if (SpecHandle.IsValid())
         {
+			// 设置伤害倍率
+			SpecHandle.Data->SetSetByCallerMagnitude(MultiplierTag, CurrentMultiplier);
             SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-           
         }
     }
 }
@@ -368,4 +407,14 @@ AActor* UGA_MeleeAttack::FindClosestEnemyInRange(float Range)
     }
 
     return BestTarget;
+}
+
+UComboDataAsset* UGA_MeleeAttack::GetComboConfigByForm() const
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+    if (ASC && ASC->HasMatchingGameplayTag(GASGameplayTags::State_Weapon_Dual))
+    {
+		return DualComboConfig;
+    }
+    return CombinedComboConfig;
 }

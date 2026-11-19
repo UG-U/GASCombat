@@ -10,7 +10,7 @@ class UAnimMontage;
 class UAbilityTask_PlayMontageAndWait;
 class UAbilityTask_WaitInputPress;
 class UGameplayEffect;
-
+class UComboDataAsset;
 
 /**
  * 
@@ -72,7 +72,10 @@ protected:
     UFUNCTION(BlueprintCallable, Category = "Combat")
     AActor* FindClosestEnemyInRange(float Range);
 
-    // 在 UGA_MeleeAttack.h 中
+
+    // 辅助函数：获取当前形态的连招数据
+    UComboDataAsset* GetComboConfigByForm() const;
+
     UPROPERTY(EditDefaultsOnly, Category = "Combat|Warp")
     float WarpDistanceOffset = 100.0f; // 吸附到敌人面前的偏移距离
 
@@ -88,17 +91,24 @@ protected:
     // 是否缓冲了输入
     bool bInputBuffered = false;
 
-    // 连击配置：每段的蒙太奇 Section 名
-    UPROPERTY(EditDefaultsOnly, Category = "Combo")
-    TArray<FName> ComboSections = { "Attack1", "Attack2", "Attack3" };
 
     // 攻击蒙太奇
-    UPROPERTY(EditDefaultsOnly, Category = "Combo")
-    TObjectPtr<UAnimMontage> AttackMontage;
+	TObjectPtr<UAnimMontage>CurrentMontage;
+
+	UPROPERTY(EditAnywhere, Category = "Combo")
+    TObjectPtr<UComboDataAsset>DualComboConfig;
+
+    UPROPERTY(EditAnywhere, Category = "Combo")
+    TObjectPtr<UComboDataAsset>CombinedComboConfig;
+
+    //运行选中的连招配置
+    UPROPERTY()
+	TObjectPtr<UComboDataAsset> CurrentComboConfig;
 
     // 伤害 GE
     UPROPERTY(EditDefaultsOnly, Category = "Combo")
     TSubclassOf<UGameplayEffect> DamageEffectClass;
+
 
     // 近战检测参数
     UPROPERTY(EditDefaultsOnly, Category = "Combo")

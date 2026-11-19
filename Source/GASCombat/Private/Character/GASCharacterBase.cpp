@@ -11,8 +11,7 @@ AGASCharacterBase::AGASCharacterBase()
  	
 	PrimaryActorTick.bCanEverTick = true;
 
-	WeaponSocket = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponSocket"));
-	WeaponSocket->SetupAttachment(GetMesh(), FName("WeaponSocket"));
+	
 
 
 	TeamId = FGenericTeamId(255);
