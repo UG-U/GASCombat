@@ -4,7 +4,9 @@
 #include "GameplayAbility/GASAbility_F.h"
 #include"AbilitySystemComponent.h"
 #include"GASGameplayTags.h"
-#include"DataAsset/SkillDataAsset.h"
+#include "DataAsset/SkillDataAsset.h"
+#include <Abilities/Tasks/AbilityTask_WaitGameplayEvent.h>
+#include "GameplayEffect.h"
 #include <Abilities/Tasks/AbilityTask_PlayMontageAndWait.h>
 void UGASAbility_F::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
 {
@@ -23,6 +25,14 @@ void UGASAbility_F::ActivateAbility(const FGameplayAbilitySpecHandle Handle, con
 	MontageTask->OnCompleted.AddDynamic(this, &UGASAbility_F::OnMontageCompleted);
 	MontageTask->ReadyForActivation();
 
+	// 监听伤害帧
+	UAbilityTask_WaitGameplayEvent* DamageEventTask = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(
+		this, GASGameplayTags::Event_Combat_DamageFrame);
+	DamageEventTask->EventReceived.AddDynamic(this, &UGASAbility_F::OnDamageFrameEvent);
+	DamageEventTask->ReadyForActivation();
+
+	TryWarpToNearestEnemy(FindEnemyRadius);
+
 }
 
 void UGASAbility_F::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
@@ -33,4 +43,21 @@ void UGASAbility_F::EndAbility(const FGameplayAbilitySpecHandle Handle, const FG
 void UGASAbility_F::OnMontageCompleted()
 {
 	EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+}
+
+void UGASAbility_F::OnDamageFrameEvent(FGameplayEventData Payload)
+{
+	ApplyMeleeDamage(PerformMeleeTrace());
+}
+
+TSubclassOf<UGameplayEffect> UGASAbility_F::GetMeleeDamageEffect() const
+{
+	if (!SkillDataAsset)
+	{
+		return nullptr;
+	}
+
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	const bool bIsDual = ASC && ASC->HasMatchingGameplayTag(GASGameplayTags::State_Weapon_Dual);
+	return bIsDual ? SkillDataAsset->DualFormData.DamageGE : SkillDataAsset->CombinedFormData.DamageGE;
 }

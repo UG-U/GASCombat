@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameplayAbility/GASGameplayAbility.h"
+#include "GameplayAbility/GASMeleeAbilityBase.h"
 #include "GA_MeleeAttack.generated.h"
 
 class UAnimMontage;
@@ -11,12 +11,13 @@ class UAbilityTask_PlayMontageAndWait;
 class UAbilityTask_WaitInputPress;
 class UGameplayEffect;
 class UComboDataAsset;
+class UMotionWarpingComponent;
 
 /**
  * 
  */
 UCLASS()
-class GASCOMBAT_API UGA_MeleeAttack : public UGASGameplayAbility
+class GASCOMBAT_API UGA_MeleeAttack : public UGASMeleeAbilityBase
 {
 	GENERATED_BODY()
 	
@@ -65,22 +66,15 @@ protected:
     UFUNCTION()
     void OnDamageFrame(FGameplayEventData Payload);
 
-	// 执行近战攻击检测,找敌人
-    TArray<FHitResult> PerformMeleeTrace();
 
-    //寻找距离最近的敌人
-    UFUNCTION(BlueprintCallable, Category = "Combat")
-    AActor* FindClosestEnemyInRange(float Range);
 
 
     // 辅助函数：获取当前形态的连招数据
     UComboDataAsset* GetComboConfigByForm() const;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Combat|Warp")
-    float WarpDistanceOffset = 100.0f; // 吸附到敌人面前的偏移距离
+    virtual TSubclassOf<UGameplayEffect> GetMeleeDamageEffect() const override;
+    virtual float GetMeleeDamageMultiplier() const override;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Combat|Warp")
-    float FindEnemyRadius = 500.0f; // 寻找敌人的半径
 
     // 当前连击段数
     int32 ComboIndex = 0;
@@ -111,11 +105,7 @@ protected:
 
 
     // 近战检测参数
-    UPROPERTY(EditDefaultsOnly, Category = "Combo")
-    float TraceRadius = 50.0f;
 
-    UPROPERTY(EditDefaultsOnly, Category = "Combo")
-    float TraceDistance = 150.0f;
 
     // 当前激活的蒙太奇 Task
     UPROPERTY()

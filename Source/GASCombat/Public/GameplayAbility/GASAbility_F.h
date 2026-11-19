@@ -3,16 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameplayAbility/GASGameplayAbility.h"
+#include "GameplayAbility/GASMeleeAbilityBase.h"
 #include "GASAbility_F.generated.h"
 
 
 class USkillDataAsset;
+class UGameplayEffect;
 /**
  * 
  */
 UCLASS()
-class GASCOMBAT_API UGASAbility_F : public UGASGameplayAbility
+class GASCOMBAT_API UGASAbility_F : public UGASMeleeAbilityBase
 {
 	GENERATED_BODY()
 	
@@ -25,6 +26,11 @@ public:
 
 	UFUNCTION()
 	void OnMontageCompleted();
+
+	UFUNCTION()
+	void OnDamageFrameEvent(FGameplayEventData Payload);
+
+	virtual TSubclassOf<UGameplayEffect> GetMeleeDamageEffect() const override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill")
 	TObjectPtr<USkillDataAsset>SkillDataAsset;
